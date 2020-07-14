@@ -230,9 +230,9 @@ RayFan::get_plot (enum rayfan_plot_type_e x, enum rayfan_plot_type_e y)
     {
     case EntranceHeight:
       get_x_value = &RayFan::get_entrance_height;
-      plot->get_axes ().set_range (math::range_t (-1.0, 1.0),
+/*      plot->get_axes ().set_range (math::range_t (-1.0, 1.0),
                                    io::RendererAxes::X);
-      plot->get_axes ().set_tics_step (1.0, io::RendererAxes::X);
+      plot->get_axes ().set_tics_step (1.0, io::RendererAxes::X);*/
       break;
 
     case EntranceAngle:
