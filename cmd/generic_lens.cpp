@@ -123,9 +123,8 @@ setup_point_source (std::shared_ptr<sys::System> &sys, double angleOfView,
     }
   auto source_point = std::make_shared<sys::SourcePoint> (mode, unit_vector);
   source_point->clear_spectrum ();
-  source_point->add_spectral_line (light::SpectralLine::d);
-  source_point->add_spectral_line (light::SpectralLine::C);
-  source_point->add_spectral_line (light::SpectralLine::F);
+  for(double wl=420; wl<680; wl+=20)
+      source_point->add_spectral_line(wl);
   sys->add (source_point);
 
   return source_point;
