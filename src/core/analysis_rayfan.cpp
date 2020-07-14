@@ -52,7 +52,7 @@ namespace analysis
 RayFan::RayFan (const std::shared_ptr<sys::System> &system,
                 enum rayfan_plane_e plane)
     : _tracer (system.get ()), _processed_trace (false), _entrance (0),
-      _exit (0), _dist (trace::SagittalDist, 15)
+      _exit (0), _dist (trace::SagittalDist, 150)
 {
   set_plane (plane);
 }

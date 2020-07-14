@@ -310,7 +310,7 @@ layout (const std::shared_ptr<sys::System> &sys,
 #else
     // trace and draw rays from source
     tracer.get_params ().set_default_distribution (
-        trace::Distribution (trace::MeridionalDist, 10));
+        trace::Distribution (trace::MeridionalDist, 50));
     tracer.get_trace_result ().set_generated_save_state (*source_point);
     tracer.trace ();
     tracer.get_trace_result ().draw_2d (renderer);
