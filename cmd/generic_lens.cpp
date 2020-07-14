@@ -325,7 +325,7 @@ analysis_spot (std::shared_ptr<sys::System> &sys,
   sys->enable_single<sys::Source> (*source_point);
 
   sys->get_tracer_params ().set_default_distribution (
-      trace::Distribution (trace::HexaPolarDist, 20));
+      trace::Distribution (trace::HexaPolarDist, 70));
 
   analysis::Spot spot (sys);
 

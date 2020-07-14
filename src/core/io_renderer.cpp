@@ -22,6 +22,8 @@
 
 */
 
+#include <fstream>
+#include <algorithm>
 #include <goptical/core/io/renderer.hpp>
 
 #include <goptical/core/trace/params.hpp>
@@ -211,18 +213,132 @@ Renderer::draw_trace_result_3d (const trace::Result &result, bool hit_image,
   group_end ();
 }
 
+const int width=300, height=300;
+double minX=INFINITY, maxX=-INFINITY, minY=INFINITY, maxY=-INFINITY;
+static int ignoredPoints=0;
+static std::vector<double> img;
+void plotPoint(const double x, const double y, Rgb const& color)
+{
+//    std::cerr << "x,y: " << x << ", " << y << " => rgb: "
+//              << color.r << "," << color.g << "," << color.b << "\n";
+    const auto xi = std::round((x-minX)/(maxX-minX)*(width-1));
+    const auto yi = std::round((y-minY)/(maxY-minY)*(height-1));
+    if(xi<0 || xi>=width || yi<0 || yi>=height)
+    {
+        ++ignoredPoints;
+        return;
+    }
+    img[(xi+height*yi)*3+0]+=color.r;
+    img[(xi+height*yi)*3+1]+=color.g;
+    img[(xi+height*yi)*3+2]+=color.b;
+}
+
+#pragma pack(push,1)
+struct BitmapHeader
+{
+    uint16_t signature; // 0x4d42
+    uint32_t fileSize;
+    uint32_t zero;
+    uint32_t dataOffset;
+    uint32_t bitmapInfoHeaderSize; // 40
+    uint32_t width;
+    uint32_t height;
+    uint16_t numOfPlanes; // 1
+    uint16_t bpp;
+    uint32_t compressionType; // none is 0
+    uint32_t dataSize;
+    uint32_t horizPPM;
+    uint32_t vertPPM;
+    uint32_t numOfColors;
+    uint32_t numOfImportantColors;
+};
+#pragma pack(pop)
+
 void
 Renderer::draw_intercepts (const trace::Result &result, const sys::Surface &s)
 {
   _max_intensity = result.get_max_ray_intensity ();
 
+  img.clear();
+  img.resize(width*height*3);
+  ignoredPoints=0;
+
+  // Find the domain extents
+  minX=minY=INFINITY;
+  maxX=maxY=-INFINITY;
+  for (auto &i : result.get_intercepted (s))
+  {
+      const trace::Ray &ray = *i;
+      // dont need global transform here, draw ray intercept points in
+      // surface local coordinates.
+      const auto pos=ray.get_intercept_point().project_xy();
+      if(pos.x()<minX) minX=pos.x();
+      if(pos.y()<minY) minY=pos.y();
+      if(pos.x()>maxX) maxX=pos.x();
+      if(pos.y()>maxY) maxY=pos.y();
+  }
+
+  // Make sure the domain being plotted is a square that contains all the points
+  const auto deltaX=maxX-minX, deltaY=maxY-minY;
+  if(deltaX>deltaY)
+  {
+      maxY+=(deltaX-deltaY)/2;
+      minY-=(deltaX-deltaY)/2;
+  }
+  else if(deltaX<deltaY)
+  {
+      maxX+=(deltaY-deltaX)/2;
+      minX-=(deltaY-deltaX)/2;
+  }
+
+  // Now we can do the plotting
   for (auto &i : result.get_intercepted (s))
     {
       const trace::Ray &ray = *i;
       // dont need global transform here, draw ray intercept points in
       // surface local coordinates.
       draw_point (ray.get_intercept_point ().project_xy (), ray_to_rgb (ray));
+      const auto pos=ray.get_intercept_point().project_xy();
+      plotPoint(pos.x(), pos.y(), ray_to_rgb(ray));
     }
+
+  // And finally save the BMP
+  {
+      static int seqNum=0;
+      ++seqNum;
+      std::ofstream file("/tmp/plot"+std::to_string(seqNum)+".bmp");
+      BitmapHeader header={};
+      header.signature=0x4d42;
+      header.fileSize=((width+3)&~3)*height*3+sizeof header;
+      header.dataOffset=sizeof header;
+      header.bitmapInfoHeaderSize=40;
+      header.width=width;
+      header.height=height;
+      header.numOfPlanes=1;
+      header.bpp=24;
+      file.write(reinterpret_cast<const char*>(&header), sizeof header);
+
+      const auto maxImgVal=*std::max_element(img.begin(), img.end());
+      std::cerr << "Min x,y: " << minX << "," << minY << "; max x,y: " << maxX << "," << maxY << "\n";
+      std::cerr << "Ignored points: " << ignoredPoints << "\n";
+      std::cerr << "Max image color channel value: " << maxImgVal << "\n";
+      for(int yi=0; yi<height; ++yi)
+      {
+          for(int xi=0; xi<width; ++xi)
+          {
+              const uint8_t red  = std::pow(std::max(0., img[(xi+height*yi)*3+0]/maxImgVal), 1/2.2)*255;
+              const uint8_t green= std::pow(std::max(0., img[(xi+height*yi)*3+1]/maxImgVal), 1/2.2)*255;
+              const uint8_t blue = std::pow(std::max(0., img[(xi+height*yi)*3+2]/maxImgVal), 1/2.2)*255;
+              const uint8_t bgr[3]={blue, green, red};
+              file.write(reinterpret_cast<const char*>(bgr), sizeof bgr);
+          }
+          constexpr auto scanLineAlignment=4;
+          const char align[scanLineAlignment-1]={};
+          const auto alignSize=(sizeof header-file.tellp())%scanLineAlignment;
+          if(alignSize)
+              file.write(align,alignSize);
+      }
+  }
 }
 
 const Rgb
